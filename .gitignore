@@ -26,6 +26,8 @@ build/
 *.pickle
 club_data/
 data/
+enron_processed/
+maildir/
 
 # Credentials
 *.json
