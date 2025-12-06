@@ -57,7 +57,11 @@ flask-cors>=4.0.0
 
 # Authentication & Authorization
 python-jose[cryptography]>=3.3.0  # Auth0 JWT validation
+PyJWT>=2.8.0  # JWT signature verification (required for input_validator.py)
 cryptography>=42.0.0  # Encryption at rest
+
+# System Monitoring & Security
+psutil>=5.9.0  # System resource monitoring (required for uptime_monitor.py)
 
 # SAML SSO (Optional - for Enterprise SSO)
 python3-saml>=1.16.0  # Google Workspace, Microsoft 365, Okta integration
