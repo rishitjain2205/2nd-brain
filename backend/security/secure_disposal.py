@@ -23,7 +23,7 @@ import os
 import hashlib
 import secrets
 from pathlib import Path
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Dict
 from datetime import datetime
 import json
 
@@ -35,11 +35,13 @@ class SecureDataDisposal:
     ✅ WORKS ON: SSDs, HDDs, Cloud Storage, RAM disks
     ✅ GUARANTEED: Data is unrecoverable (computational security)
     ✅ FAST: Just delete a key file, not overwrite gigabytes
+    ✅ SECURE PERMISSIONS: All files created with 0o600 (owner read/write only)
 
     REQUIREMENTS:
     - All sensitive data must be encrypted at rest
     - Keys must be stored separately from data
     - Key deletion must be atomic and logged
+    - All files have secure permissions (0o600)
     """
 
     def __init__(self, key_storage_dir: Union[str, Path] = "data/encryption_keys"):
@@ -81,19 +83,21 @@ class SecureDataDisposal:
         if key_id is None:
             key_id = secrets.token_hex(16)
 
-        # Save key separately
+        # Save key separately with secure permissions (GPT recommendation)
         key_file = self.key_storage_dir / f"{key_id}.key"
         with open(key_file, 'wb') as f:
             f.write(key)
+        os.chmod(key_file, 0o600)  # Read/write for owner only
 
         # Encrypt data
         cipher = Fernet(key)
         encrypted_data = cipher.encrypt(data)
 
-        # Save encrypted file
+        # Save encrypted file with secure permissions
         file_path = Path(file_path)
         with open(file_path, 'wb') as f:
             f.write(encrypted_data)
+        os.chmod(file_path, 0o600)  # Read/write for owner only (GPT recommendation)
 
         print(f"✓ Created encrypted file: {file_path}")
         print(f"  Key ID: {key_id}")
@@ -220,8 +224,13 @@ class SecureDataDisposal:
         }
 
         # Append to audit log
+        log_exists = self.disposal_log.exists()
         with open(self.disposal_log, 'a') as f:
             f.write(json.dumps(log_entry) + '\n')
+
+        # Set secure permissions if newly created (GPT recommendation)
+        if not log_exists:
+            os.chmod(self.disposal_log, 0o600)
 
     def get_disposal_audit_log(self, days: int = 30) -> List[Dict]:
         """

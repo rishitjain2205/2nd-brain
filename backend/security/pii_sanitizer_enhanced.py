@@ -128,6 +128,38 @@ class EnhancedPIISanitizer:
         r'\b0x[a-fA-F0-9]{40}\b',  # Ethereum
     ]
 
+    # API Keys and Tokens (GPT recommendation)
+    API_KEY_PATTERNS = {
+        'JWT': [
+            r'\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b',  # JWT tokens
+        ],
+        'AWS': [
+            r'\bAKIA[0-9A-Z]{16}\b',  # AWS Access Key
+            r'\b[A-Za-z0-9/+=]{40}\b(?=.*aws)',  # AWS Secret (context-aware)
+        ],
+        'GitHub': [
+            r'\bghp_[A-Za-z0-9]{36}\b',  # GitHub Personal Access Token
+            r'\bgho_[A-Za-z0-9]{36}\b',  # GitHub OAuth Token
+            r'\bghs_[A-Za-z0-9]{36}\b',  # GitHub Server Token
+        ],
+        'Slack': [
+            r'\bxox[baprs]-[0-9]{10,13}-[0-9]{10,13}-[A-Za-z0-9]{24,32}\b',  # Slack tokens
+        ],
+        'Google': [
+            r'\bAIza[0-9A-Za-z_-]{35}\b',  # Google API Key
+        ],
+        'Stripe': [
+            r'\b(?:sk|pk)_(?:live|test)_[0-9a-zA-Z]{24,}\b',  # Stripe keys
+        ],
+        'Azure': [
+            r'\b[A-Za-z0-9/+=]{88}\b',  # Azure keys (88 chars base64)
+        ],
+        'Generic': [
+            r'\bapi[_-]?key[_-]?[=:]\s*[\'"]?[A-Za-z0-9_-]{16,}\b',  # Generic API key patterns
+            r'\bbearer\s+[A-Za-z0-9_-]{20,}\b',  # Bearer tokens
+        ]
+    }
+
     def __init__(self, hash_pii: bool = True, replacement_token: str = '[REDACTED]'):
         """
         Initialize PII sanitizer
@@ -166,6 +198,11 @@ class EnhancedPIISanitizer:
         self.ipv6_regex = re.compile(self.IPV6_PATTERN)
         self.crypto_regexes = [re.compile(p) for p in self.CRYPTO_PATTERNS]
 
+        # API keys and tokens (GPT recommendation)
+        self.api_key_regexes = {}
+        for key_type, patterns in self.API_KEY_PATTERNS.items():
+            self.api_key_regexes[key_type] = [re.compile(p, re.IGNORECASE) for p in patterns]
+
     def _hash_string(self, text: str) -> str:
         """Create hash of PII for audit purposes"""
         return hashlib.sha256(text.encode()).hexdigest()[:16]
@@ -202,6 +239,14 @@ class EnhancedPIISanitizer:
             'ipv4s': 0,
             'ipv6s': 0,
             'crypto_addresses': 0,
+            'api_keys_jwt': 0,
+            'api_keys_aws': 0,
+            'api_keys_github': 0,
+            'api_keys_slack': 0,
+            'api_keys_google': 0,
+            'api_keys_stripe': 0,
+            'api_keys_azure': 0,
+            'api_keys_generic': 0,
         }
 
         # 1. Sanitize SSNs (highest priority)
@@ -270,7 +315,15 @@ class EnhancedPIISanitizer:
             stats['crypto_addresses'] += len(matches)
             text = regex.sub(lambda m: self._replace(m.group(), 'CRYPTO'), text)
 
-        # 12. Sanitize names (last, as it's less precise)
+        # 12. Sanitize API keys and tokens (GPT recommendation)
+        for key_type, regexes in self.api_key_regexes.items():
+            stat_key = f'api_keys_{key_type.lower()}'
+            for regex in regexes:
+                matches = regex.findall(text)
+                stats[stat_key] += len(matches)
+                text = regex.sub(lambda m: self._replace(m.group(), f'API_KEY_{key_type.upper()}'), text)
+
+        # 13. Sanitize names (last, as it's less precise)
         for regex in self.name_regexes:
             matches = regex.findall(text)
             # Filter out common false positives
@@ -363,6 +416,13 @@ if __name__ == "__main__":
 
         # Crypto
         "Bitcoin: 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+
+        # API Keys and Tokens (GPT recommendation)
+        "JWT: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.EXAMPLE_SIGNATURE_HERE",
+        "AWS: AKIAIOSFODNN7EXAMPLE",
+        "GitHub: ghp_EXAMPLE1234567890abcdefghijklmnop",
+        "Google API: AIzaSyEXAMPLE1234567890abcdefghijklm",
+        "Slack: xoxb-EXAMPLE-EXAMPLE-EXAMPLETOKEN12345",
     ]
 
     sanitizer = EnhancedPIISanitizer(hash_pii=True)

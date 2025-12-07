@@ -6,6 +6,12 @@ SECURITY FIXES:
 ✅ No default/static salts
 ✅ Key rotation support
 ✅ Secure key derivation (PBKDF2 with 310,000 iterations - OWASP 2023)
+✅ NO PICKLE - Uses JSON only (GPT recommendation)
+
+⚠️ CRITICAL: NO pickle.loads() usage!
+   - pickle.loads() can execute arbitrary code (RCE vulnerability)
+   - This implementation uses JSON only (safe serialization)
+   - Never deserialize untrusted data with pickle!
 
 Uses Fernet (symmetric encryption) for fast encryption/decryption
 Fernet = AES-128-CBC + HMAC-SHA256 (authenticated encryption)
