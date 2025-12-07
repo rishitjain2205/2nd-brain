@@ -34,6 +34,9 @@ from security.https_enforcer import init_security_middleware
 from security.audit_logger import get_audit_logger
 from auth.auth0_handler import Auth0Handler, RateLimiter
 
+# NEW: PyJWT-based validator (GPT recommendation)
+from security.jwt_validator import JWTValidator, JWTConfig
+
 # Load configuration
 from config.config import Config
 
@@ -67,11 +70,19 @@ init_security_middleware(app)
 # 5. Initialize authentication
 try:
     auth = Auth0Handler()
-    print("✓ Auth0 authentication initialized")
+    print("✓ Auth0 authentication initialized (python-jose)")
 except Exception as e:
     print(f"⚠️  Warning: Auth0 not configured ({e})")
     print("   API endpoints will require manual authentication setup")
     auth = None
+
+# 5b. Initialize PyJWT validator (GPT recommendation - more secure)
+try:
+    jwt_validator = JWTValidator()
+    print("✓ PyJWT validator initialized (recommended for production)")
+except Exception as e:
+    print(f"⚠️  Warning: PyJWT validator not configured ({e})")
+    jwt_validator = None
 
 # 6. Initialize rate limiting
 rate_limiter = RateLimiter(requests_per_minute=100)
@@ -389,9 +400,29 @@ def api_search():
     - Authentication required (optional - uncomment decorator below)
     - Input validated
     - Audit logged
+
+    AUTHENTICATION OPTIONS:
+    Option 1 (Legacy): Use Auth0Handler decorator
+        @auth.requires_auth
+
+    Option 2 (Recommended): Use PyJWT validator manually
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        payload = jwt_validator.validate_token(token)
+        if not payload:
+            return jsonify({'error': 'Unauthorized'}), 401
+        user_id = payload.get('sub')
     """
     # To enable authentication, uncomment this line:
     # @auth.requires_auth (add before @rate_limiter.rate_limit())
+
+    # OR use PyJWT validator (recommended for production):
+    # token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    # if jwt_validator:
+    #     payload = jwt_validator.validate_token(token)
+    #     if not payload:
+    #         return jsonify({'error': 'Unauthorized', 'message': 'Invalid or expired token'}), 401
+    #     user_id = payload.get('sub')
+    #     g.current_user_id = user_id
 
     data = request.get_json()
 
