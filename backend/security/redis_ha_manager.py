@@ -243,15 +243,18 @@ class RedisHAManager:
 
                 # Log failure
                 if self.audit_logger:
-                    self.audit_logger.log_event(
-                        "redis_operation_failure",
-                        {
-                            "operation": operation.__name__,
-                            "attempt": attempt + 1,
-                            "error": str(e)
-                        },
-                        level="WARNING"
-                    )
+                    try:
+                        self.audit_logger.log_event(
+                            "redis_operation_failure",
+                            {
+                                "operation": operation.__name__,
+                                "attempt": attempt + 1,
+                                "error": str(e)
+                            },
+                            level="WARNING"
+                        )
+                    except Exception:
+                        pass  # Don't crash on audit logging failure
 
                 # Check if we should retry
                 if attempt < self.config.max_retries:
@@ -276,27 +279,34 @@ class RedisHAManager:
                 print(f"🔴 Circuit breaker OPENED after {self._circuit_breaker_failures} failures")
 
                 if self.audit_logger:
-                    self.audit_logger.log_event(
-                        "redis_circuit_breaker_opened",
-                        {
-                            "failures": self._circuit_breaker_failures,
-                            "threshold": self.config.circuit_breaker_threshold
-                        },
-                        level="CRITICAL"
-                    )
+                    try:
+                        self.audit_logger.log_event(
+                            "redis_circuit_breaker_opened",
+                            {
+                                "failures": self._circuit_breaker_failures,
+                                "threshold": self.config.circuit_breaker_threshold
+                            },
+                            level="CRITICAL"
+                        )
+                    except Exception as e:
+                        # Don't crash on audit logging failure
+                        print(f"⚠️  Audit logging failed: {e}")
 
         # Handle according to failure mode
         if self.config.failure_mode == RedisFailureMode.FAIL_CLOSED:
             # FAIL-CLOSED: Reject request for safety
             if self.audit_logger:
-                self.audit_logger.log_event(
-                    "redis_fail_closed",
-                    {
-                        "operation": operation_name,
-                        "error": str(error)
-                    },
-                    level="CRITICAL"
-                )
+                try:
+                    self.audit_logger.log_event(
+                        "redis_fail_closed",
+                        {
+                            "operation": operation_name,
+                            "error": str(error)
+                        },
+                        level="CRITICAL"
+                    )
+                except Exception:
+                    pass  # Don't crash on audit logging failure
 
             raise RuntimeError(
                 f"SECURITY: Redis operation failed - rejecting request for safety. "
@@ -309,15 +319,18 @@ class RedisHAManager:
             print(f"   Operation: {operation_name}, Error: {error}")
 
             if self.audit_logger:
-                self.audit_logger.log_event(
-                    "redis_fail_open",
-                    {
-                        "operation": operation_name,
-                        "error": str(error),
-                        "warning": "INSECURE_FAIL_OPEN_MODE"
-                    },
-                    level="HIGH"
-                )
+                try:
+                    self.audit_logger.log_event(
+                        "redis_fail_open",
+                        {
+                            "operation": operation_name,
+                            "error": str(error),
+                            "warning": "INSECURE_FAIL_OPEN_MODE"
+                        },
+                        level="HIGH"
+                    )
+                except Exception:
+                    pass  # Don't crash on audit logging failure
 
             # Return None (caller must handle)
             return None
