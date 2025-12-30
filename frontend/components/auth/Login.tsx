@@ -24,11 +24,15 @@ export default function Login() {
     localStorage.setItem('userEmail', email)
     localStorage.setItem('userType', userType)
 
+    // TODO: Fix routing once all pages are deployed
+    // Temporarily redirect to signup which we know works
     // Redirect based on user type
     if (userType === 'professor') {
-      router.push('/create-lab')
+      // router.push('/create-lab') // 404 on Vercel currently
+      router.push('/signup?success=true')
     } else {
-      router.push('/browse')
+      // router.push('/browse') // 404 on Vercel currently
+      router.push('/signup?success=true')
     }
   }
 
