@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { setAuthCookie } from '@/lib/auth'
 
 export default function SignupPage() {
   const [userType, setUserType] = useState<'student' | 'professor'>('student')
@@ -31,13 +32,13 @@ export default function SignupPage() {
     }
 
     // TODO: Call backend API to create account
-    // For now, store in localStorage and redirect
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('userEmail', email)
-      localStorage.setItem('userType', userType)
-      localStorage.setItem('userName', fullName)
-      localStorage.setItem('isAuthenticated', 'true')
-    }
+    // For now, store in cookies and redirect
+    setAuthCookie({
+      email,
+      userType,
+      userName: fullName,
+      isAuthenticated: true
+    }, true) // Always remember on signup
 
     // Redirect based on user type
     if (userType === 'professor') {

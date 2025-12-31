@@ -3,11 +3,13 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { setAuthCookie } from '@/lib/auth'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [userType, setUserType] = useState<'student' | 'professor'>('student')
+  const [rememberMe, setRememberMe] = useState(false)
   const router = useRouter()
 
   const handleLogin = (e?: React.FormEvent) => {
@@ -17,12 +19,12 @@ export default function Login() {
       return
     }
 
-    // Store user info in localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('userEmail', email)
-      localStorage.setItem('userType', userType)
-      localStorage.setItem('isAuthenticated', 'true')
-    }
+    // Store user info in cookies (with Remember Me option)
+    setAuthCookie({
+      email,
+      userType,
+      isAuthenticated: true
+    }, rememberMe)
 
     // Redirect based on user type to the correct dashboard
     if (userType === 'professor') {
@@ -201,8 +203,36 @@ export default function Login() {
             />
           </div>
 
-          {/* Forgot Password */}
-          <div style={{ textAlign: 'right', marginBottom: '24px' }}>
+          {/* Remember Me & Forgot Password */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer'
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  cursor: 'pointer'
+                }}
+              />
+              <span
+                style={{
+                  color: '#6B7280',
+                  fontFamily: '"Work Sans", sans-serif',
+                  fontSize: '14px'
+                }}
+              >
+                Remember me
+              </span>
+            </label>
             <a
               href="#"
               style={{
@@ -239,13 +269,60 @@ export default function Login() {
             Sign in
           </button>
 
+          {/* Divider */}
+          <div style={{ display: 'flex', alignItems: 'center', margin: '24px 0' }}>
+            <div style={{ flex: 1, height: '1px', backgroundColor: '#E5E7EB' }} />
+            <span style={{ padding: '0 16px', color: '#6B7280', fontSize: '14px', fontFamily: '"Work Sans", sans-serif' }}>
+              or
+            </span>
+            <div style={{ flex: 1, height: '1px', backgroundColor: '#E5E7EB' }} />
+          </div>
+
+          {/* SSO Button */}
+          <button
+            type="button"
+            onClick={() => {
+              // TODO: Implement Google SSO - requires backend OAuth2 setup
+              alert('Google SSO integration coming soon!\n\nThis requires:\n1. Backend OAuth2 configuration\n2. Google Cloud Console setup\n3. UCLA email verification')
+            }}
+            style={{
+              width: '100%',
+              padding: '12px',
+              borderRadius: '8px',
+              backgroundColor: '#FFFFFF',
+              color: '#111827',
+              fontFamily: '"Work Sans", sans-serif',
+              fontSize: '15px',
+              fontWeight: 500,
+              border: '1px solid #D1D5DB',
+              cursor: 'pointer',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F9FAFB'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18">
+              <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+              <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+              <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z"/>
+              <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z"/>
+            </svg>
+            Continue with UCLA Google
+          </button>
+
           {/* Sign Up Link */}
           <p
             style={{
               textAlign: 'center',
               color: '#6B7280',
               fontFamily: '"Work Sans", sans-serif',
-              fontSize: '14px'
+              fontSize: '14px',
+              marginTop: '20px'
             }}
           >
             Don't have an account?{' '}
