@@ -67,7 +67,54 @@ export default function ApplyPage() {
     }
   }
 
-  const handleSubmitApplication = () => {
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => {
+        const result = reader.result as string
+        // Remove the data:application/pdf;base64, prefix
+        const base64 = result.split(',')[1]
+        resolve(base64)
+      }
+      reader.onerror = error => reject(error)
+    })
+  }
+
+  const handleSubmitApplication = async () => {
+    if (!resumeFile) return
+
+    // Convert resume to base64
+    const resumeBase64 = await fileToBase64(resumeFile)
+
+    // Create application data
+    const applicationData = {
+      id: Date.now().toString(),
+      studentName: fullName,
+      email,
+      phone,
+      labName,
+      major,
+      gpa,
+      graduationDate,
+      appliedDate: new Date().toISOString(),
+      status: 'pending',
+      coverLetter,
+      skills,
+      availability,
+      hoursPerWeek,
+      references,
+      resumeData: resumeBase64,
+      resumeFileName: resumeFile.name,
+      transcriptData: transcriptFile ? await fileToBase64(transcriptFile) : undefined,
+      transcriptFileName: transcriptFile?.name
+    }
+
+    // Store application in localStorage
+    const existingApplications = JSON.parse(localStorage.getItem('applications') || '[]')
+    existingApplications.push(applicationData)
+    localStorage.setItem('applications', JSON.stringify(existingApplications))
+
     setShowSuccessMessage(true)
 
     // Redirect back to dashboard after 2 seconds

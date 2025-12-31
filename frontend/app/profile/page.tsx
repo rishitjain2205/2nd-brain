@@ -22,6 +22,30 @@ export default function ProfilePage() {
   const [interests, setInterests] = useState('Computational Biology, AI/ML, Bioinformatics')
   const [resumeFile, setResumeFile] = useState<File | null>(null)
   const [transcriptFile, setTranscriptFile] = useState<File | null>(null)
+  const [savedResumeFileName, setSavedResumeFileName] = useState<string | null>(null)
+  const [savedTranscriptFileName, setSavedTranscriptFileName] = useState<string | null>(null)
+
+  // Load profile data from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('profileData')
+      if (saved) {
+        const profile = JSON.parse(saved)
+        if (profile.fullName) setFullName(profile.fullName)
+        if (profile.email) setEmail(profile.email)
+        if (profile.phone) setPhone(profile.phone)
+        if (profile.major) setMajor(profile.major)
+        if (profile.year) setYear(profile.year)
+        if (profile.gpa) setGpa(profile.gpa)
+        if (profile.graduationDate) setGraduationDate(profile.graduationDate)
+        if (profile.bio) setBio(profile.bio)
+        if (profile.skills) setSkills(profile.skills)
+        if (profile.interests) setInterests(profile.interests)
+        if (profile.resumeFileName) setSavedResumeFileName(profile.resumeFileName)
+        if (profile.transcriptFileName) setSavedTranscriptFileName(profile.transcriptFileName)
+      }
+    }
+  }, [])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'resume' | 'transcript') => {
     const file = e.target.files?.[0]
@@ -46,7 +70,36 @@ export default function ProfilePage() {
     }
   }
 
-  const handleSaveProfile = () => {
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => {
+        const result = reader.result as string
+        const base64 = result.split(',')[1]
+        resolve(base64)
+      }
+      reader.onerror = error => reject(error)
+    })
+  }
+
+  const handleSaveProfile = async () => {
+    // Convert resume and transcript to base64 if they exist
+    let resumeData = null
+    let resumeFileName = null
+    let transcriptData = null
+    let transcriptFileName = null
+
+    if (resumeFile) {
+      resumeData = await fileToBase64(resumeFile)
+      resumeFileName = resumeFile.name
+    }
+
+    if (transcriptFile) {
+      transcriptData = await fileToBase64(transcriptFile)
+      transcriptFileName = transcriptFile.name
+    }
+
     // Save profile data to localStorage
     const profileData = {
       fullName,
@@ -54,9 +107,17 @@ export default function ProfilePage() {
       phone,
       university: 'UCLA',
       major,
+      year,
       gpa,
       graduationDate,
-      skills
+      bio,
+      skills,
+      interests,
+      resumeData,
+      resumeFileName,
+      transcriptData,
+      transcriptFileName,
+      lastUpdated: new Date().toISOString()
     }
     localStorage.setItem('profileData', JSON.stringify(profileData))
 
