@@ -499,7 +499,7 @@ export default function ProfessorApplications() {
                         marginBottom: '4px'
                       }}
                     >
-                      AI Match Score
+                      Match Score
                     </h3>
                     <p
                       style={{
