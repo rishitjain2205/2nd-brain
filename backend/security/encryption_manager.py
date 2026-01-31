@@ -6,7 +6,6 @@ Uses Fernet (symmetric encryption) for fast encryption/decryption
 
 import os
 import json
-import pickle
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 from cryptography.fernet import Fernet
@@ -71,7 +70,7 @@ class EncryptionManager:
             32-byte key for Fernet
         """
         if salt is None:
-            salt = b'knowledgevault_salt_2024'  # Default salt (should be random in production)
+            salt = os.urandom(16)  # Generate random 16-byte salt
 
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
@@ -226,49 +225,9 @@ class EncryptionManager:
 
         return output_path
 
-    def encrypt_pickle(self, obj: Any, file_path: Union[str, Path]) -> None:
-        """
-        Pickle and encrypt an object to file
-
-        Args:
-            obj: Object to pickle and encrypt
-            file_path: Path to save encrypted pickle
-        """
-        file_path = Path(file_path)
-
-        # Pickle object
-        pickled_data = pickle.dumps(obj)
-
-        # Encrypt
-        encrypted_data = self.encrypt(pickled_data)
-
-        # Write
-        with open(file_path, 'wb') as f:
-            f.write(encrypted_data)
-
-    def decrypt_pickle(self, file_path: Union[str, Path]) -> Any:
-        """
-        Decrypt and unpickle an object from file
-
-        Args:
-            file_path: Path to encrypted pickle file
-
-        Returns:
-            Unpickled object
-        """
-        file_path = Path(file_path)
-
-        # Read encrypted file
-        with open(file_path, 'rb') as f:
-            encrypted_data = f.read()
-
-        # Decrypt
-        pickled_data = self.decrypt(encrypted_data)
-
-        # Unpickle
-        obj = pickle.loads(pickled_data)
-
-        return obj
+    # ⚠️ SECURITY: Pickle methods removed due to RCE vulnerability
+    # pickle.loads() can execute arbitrary code when deserializing untrusted data
+    # Use encrypt_dict() / decrypt_dict() with JSON instead (safe serialization)
 
     def encrypt_jsonl(self, input_path: Union[str, Path], output_path: Optional[Union[str, Path]] = None) -> Path:
         """

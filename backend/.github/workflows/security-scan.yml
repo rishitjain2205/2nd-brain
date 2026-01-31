@@ -1,0 +1,315 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Snyk Security Scan
+        uses: snyk/actions/python@master
+        continue-on-error: false
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --fail-on=upgradable
+          command: test
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'  # Fail pipeline on vulnerabilities
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Safety Check (Python Dependencies)
+        run: |
+          pip install safety
+          safety check --json --continue-on-error | tee safety-report.json
+
+          # Fail if critical vulnerabilities found
+          if grep -q '"severity": "high"' safety-report.json || grep -q '"severity": "critical"' safety-report.json; then
+            echo "❌ Critical/High severity vulnerabilities found!"
+            exit 1
+          fi
+
+  secret-scan:
+    name: Secret Detection Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for secret scanning
+
+      - name: Run Gitleaks Secret Scanner
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
+          GITLEAKS_ENABLE_SUMMARY: true
+
+      - name: Run TruffleHog Secret Scanner
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+
+  code-quality:
+    name: Code Quality & Security Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install analysis tools
+        run: |
+          pip install bandit pylint safety
+
+      - name: Run Bandit Security Linter
+        run: |
+          bandit -r security/ auth/ monitoring/ -ll -f json -o bandit-report.json
+          bandit -r security/ auth/ monitoring/ -ll
+
+      - name: Run Pylint
+        continue-on-error: true
+        run: |
+          pylint security/ auth/ monitoring/ --disable=C,R --exit-zero
+
+      - name: Check for hardcoded secrets
+        run: |
+          echo "Checking for common secret patterns..."
+
+          # Check for common secret patterns
+          if grep -r "password.*=.*['\"].*['\"]" --include="*.py" .; then
+            echo "❌ Potential hardcoded passwords found!"
+            exit 1
+          fi
+
+          if grep -r "api[_-]key.*=.*['\"].*['\"]" --include="*.py" .; then
+            echo "❌ Potential hardcoded API keys found!"
+            exit 1
+          fi
+
+          echo "✅ No obvious hardcoded secrets found"
+
+  sbom-generation:
+    name: Generate Software Bill of Materials (SBOM)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate SBOM with CycloneDX
+        run: |
+          pip install cyclonedx-bom
+          cyclonedx-py -r -i requirements.txt -o sbom.json --format json
+
+      - name: Upload SBOM Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom
+          path: sbom.json
+          retention-days: 90
+
+      - name: Validate SBOM
+        run: |
+          echo "✅ SBOM generated successfully"
+          cat sbom.json | python -m json.tool > /dev/null
+          echo "✅ SBOM is valid JSON"
+
+  security-test:
+    name: Security Test Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run Security Tests
+        run: |
+          # Run comprehensive security test if it exists
+          if [ -f "tests/comprehensive_security_test.py" ]; then
+            python tests/comprehensive_security_test.py
+          fi
+
+      - name: Test Secret Scanner
+        run: |
+          python security/comprehensive_secret_scanner.py --test
+
+      - name: Test Input Validator
+        run: |
+          python -c "
+          from security.input_validator_fixed import InputValidator
+          validator = InputValidator()
+
+          # Test SQL injection detection
+          result = validator.validate_sql_input('SELECT * FROM users')
+          assert not result.is_valid, 'SQL injection not detected!'
+
+          # Test command injection detection
+          result = validator.validate_command_input('ls -la; rm -rf /')
+          assert not result.is_valid, 'Command injection not detected!'
+
+          print('✅ Input validator tests passed')
+          "
+
+  deployment-readiness:
+    name: Deployment Readiness Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for vulnerable files
+        run: |
+          echo "Checking for old vulnerable code..."
+
+          # Check if old vulnerable files exist
+          if [ -f "security/audit_logger.py" ]; then
+            echo "❌ BLOCKER: Vulnerable audit_logger.py still exists!"
+            echo "   Delete: rm security/audit_logger.py"
+            exit 1
+          fi
+
+          if [ -f "security/audit_logger_cloud.py" ]; then
+            echo "❌ BLOCKER: Vulnerable audit_logger_cloud.py still exists!"
+            echo "   Delete: rm security/audit_logger_cloud.py"
+            exit 1
+          fi
+
+          echo "✅ No vulnerable files found"
+
+      - name: Check KMS configuration
+        run: |
+          echo "Checking KMS configuration..."
+
+          # Verify KMS module exists
+          if [ ! -f "security/kms_key_manager.py" ]; then
+            echo "⚠️  WARNING: KMS key manager not found"
+            echo "   Create: security/kms_key_manager.py"
+            exit 1
+          fi
+
+          echo "✅ KMS key manager exists"
+
+      - name: Check required environment variables
+        run: |
+          echo "Checking production configuration..."
+
+          # List required env vars
+          echo "Required for production:"
+          echo "  - AWS_KMS_KEY_ID or AZURE_KEY_VAULT_URL"
+          echo "  - REDIS_PASSWORD"
+          echo "  - AUTH0_DOMAIN"
+          echo "  - AUTH0_AUDIENCE"
+          echo ""
+          echo "⚠️  Verify these are set in production environment"
+
+  notification:
+    name: Security Scan Results
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, secret-scan, code-quality, security-test]
+    if: always()
+
+    steps:
+      - name: Check scan results
+        run: |
+          echo "Security Scan Summary"
+          echo "===================="
+          echo ""
+
+          if [ "${{ needs.dependency-scan.result }}" == "success" ]; then
+            echo "✅ Dependency scan: PASSED"
+          else
+            echo "❌ Dependency scan: FAILED"
+          fi
+
+          if [ "${{ needs.secret-scan.result }}" == "success" ]; then
+            echo "✅ Secret scan: PASSED"
+          else
+            echo "❌ Secret scan: FAILED"
+          fi
+
+          if [ "${{ needs.code-quality.result }}" == "success" ]; then
+            echo "✅ Code quality: PASSED"
+          else
+            echo "⚠️  Code quality: WARNINGS"
+          fi
+
+          if [ "${{ needs.security-test.result }}" == "success" ]; then
+            echo "✅ Security tests: PASSED"
+          else
+            echo "❌ Security tests: FAILED"
+          fi
+
+      - name: Fail if critical issues found
+        if: needs.dependency-scan.result == 'failure' || needs.secret-scan.result == 'failure' || needs.security-test.result == 'failure'
+        run: |
+          echo "❌ CRITICAL SECURITY ISSUES FOUND"
+          echo "   Fix all issues before merging"
+          exit 1

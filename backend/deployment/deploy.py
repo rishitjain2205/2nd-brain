@@ -195,8 +195,8 @@ class AutomatedDeployer:
         # Check 2: Required files exist
         print("  • Checking required files...")
         required_files = [
-            'security/input_validator.py',
-            'security/encryption_manager.py',
+            'security/input_validator_fixed.py',  # FIXED: Use hardened version
+            'security/encryption_manager_fixed.py',  # FIXED: Use hardened version
             'security/audit_logger.py',
             'monitoring/uptime_monitor.py',
             'backup/backup_manager.py',
@@ -342,9 +342,10 @@ class AutomatedDeployer:
 
         # Verify security modules are importable
         try:
-            from security.input_validator import InputValidator
+            # FIXED: Import from hardened "_fixed" versions
+            from security.input_validator_fixed import InputValidator
             from security.https_enforcer import HTTPSEnforcer
-            from security.encryption_manager import EncryptionManager
+            from security.encryption_manager_fixed import EncryptionManager
             print("    ✓ Security modules verified")
             return True
         except ImportError as e:

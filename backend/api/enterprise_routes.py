@@ -16,7 +16,7 @@ from typing import Optional
 from auth.auth0_handler import Auth0Handler, RateLimiter, Auth0Config
 from security.audit_logger import get_audit_logger
 from security.data_sanitizer import DataSanitizer
-from security.input_validator import InputValidator
+from security.input_validator_fixed import InputValidator
 from classification.work_personal_classifier import WorkPersonalClassifier
 from gap_analysis.gap_analyzer import GapAnalyzer
 from rag.hierarchical_rag import HierarchicalRAG

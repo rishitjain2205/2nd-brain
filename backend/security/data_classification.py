@@ -152,6 +152,16 @@ class SecureDataDisposal:
 
     SOC 2: CC6.5 - Secure disposal of sensitive data
     NIST 800-88: Guidelines for Media Sanitization
+
+    ⚠️ SSD/CLOUD STORAGE LIMITATION:
+    File overwriting (DoD 5220.22-M) is effective on traditional HDDs.
+    On SSDs, NVMe drives, and cloud storage (AWS EBS/S3), the OS/hypervisor
+    controls block placement due to wear leveling. Overwriting may not
+    destroy the physical data.
+
+    For SSD/Cloud: Use encryption at rest (we do) + deletion is sufficient.
+    Physical destruction of drives is only option for 100% data erasure.
+    This limitation is documented and acceptable for SOC 2 compliance.
     """
 
     @staticmethod
@@ -171,30 +181,34 @@ class SecureDataDisposal:
 
         path = Path(file_path)
 
-        if not path.exists():
+        # SECURITY FIX (2025-12-08): Avoid TOCTOU race condition
+        # Use try/except instead of exists() check
+        try:
+            # Get file size
+            file_size = path.stat().st_size
+
+            # Overwrite with random data multiple times
+            with open(path, 'r+b') as f:
+                for pass_num in range(passes):
+                    f.seek(0)
+                    # Pass 1: Random data
+                    # Pass 2: Complement of random
+                    # Pass 3: Random data again
+                    if pass_num % 2 == 0:
+                        f.write(os.urandom(file_size))
+                    else:
+                        f.write(bytes([0xFF] * file_size))
+                    f.flush()
+                    os.fsync(f.fileno())
+
+            # Finally, delete the file
+            path.unlink()
+
+            return True
+
+        except (FileNotFoundError, PermissionError) as e:
+            print(f"⚠️  Secure delete failed: File not accessible")
             return False
-
-        # Get file size
-        file_size = path.stat().st_size
-
-        # Overwrite with random data multiple times
-        with open(path, 'r+b') as f:
-            for pass_num in range(passes):
-                f.seek(0)
-                # Pass 1: Random data
-                # Pass 2: Complement of random
-                # Pass 3: Random data again
-                if pass_num % 2 == 0:
-                    f.write(os.urandom(file_size))
-                else:
-                    f.write(bytes([0xFF] * file_size))
-                f.flush()
-                os.fsync(f.fileno())
-
-        # Finally, delete the file
-        path.unlink()
-
-        return True
 
     @staticmethod
     def secure_delete_directory(dir_path: str, passes: int = 3) -> int:
@@ -214,18 +228,22 @@ class SecureDataDisposal:
         path = Path(dir_path)
         deleted_count = 0
 
-        if not path.exists():
-            return 0
+        # SECURITY FIX (2025-12-08): Avoid TOCTOU - use try/except
+        try:
+            # Securely delete all files
+            for file in path.rglob("*"):
+                if file.is_file():
+                    SecureDataDisposal.secure_delete_file(str(file), passes)
+                    deleted_count += 1
 
-        # Securely delete all files
-        for file in path.rglob("*"):
-            if file.is_file():
-                SecureDataDisposal.secure_delete_file(str(file), passes)
-                deleted_count += 1
+            # Remove empty directory
+            try:
+                shutil.rmtree(path)
+            except FileNotFoundError:
+                pass  # Already deleted
 
-        # Remove empty directory
-        if path.exists():
-            shutil.rmtree(path)
+        except FileNotFoundError:
+            return 0  # Directory doesn't exist
 
         return deleted_count
 

@@ -6,10 +6,20 @@ SECURITY FEATURES:
 - Encrypted logs (Fernet)
 - HMAC signatures for tamper detection
 - Organization isolation
+- File locking to prevent race conditions
+
+⚠️ PRODUCTION WARNING:
+Local file storage can be deleted by attackers with filesystem access.
+For SOC 2 compliance, send logs to external immutable storage:
+- AWS CloudWatch Logs (recommended)
+- Datadog, Splunk, or Loggly
+- Enable append-only mode: chattr +a logs/*.log (Linux only)
 """
 
 import json
 import logging
+import fcntl  # File locking
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -54,7 +64,14 @@ class AuditLogger:
             self.encryption_manager = get_encryption_manager()
 
             # HMAC secret for tamper detection
-            self.hmac_secret = os.getenv('AUDIT_HMAC_SECRET', 'default_hmac_secret_change_in_production').encode()
+            hmac_secret = os.getenv('AUDIT_HMAC_SECRET')
+            if not hmac_secret or hmac_secret == 'default_hmac_secret_change_in_production':
+                raise ValueError(
+                    "⚠️ SECURITY ERROR: AUDIT_HMAC_SECRET environment variable must be set to a secure random value!\n"
+                    "Generate one with: python3 -c \"import secrets; print(secrets.token_hex(32))\"\n"
+                    "Then set: export AUDIT_HMAC_SECRET='<generated_value>'"
+                )
+            self.hmac_secret = hmac_secret.encode()
         else:
             self.encryption_manager = None
             self.hmac_secret = None

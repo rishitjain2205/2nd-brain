@@ -1,5 +1,6 @@
-import ChatInterface from '@/components/chat/ChatInterface'
+import { redirect } from 'next/navigation'
 
 export default function Home() {
-  return <ChatInterface />
+  // Server-side redirect to login - no flash/intermediate page
+  redirect('/login')
 }

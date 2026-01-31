@@ -75,7 +75,7 @@ class SecurityIncidentLogger:
         self.alert_email = alert_email or os.getenv('SECURITY_ALERT_EMAIL')
 
         # Initialize encryption for sensitive incident data
-        from security.encryption_manager import get_encryption_manager
+        from security.encryption_manager_fixed import get_encryption_manager
         self.encryption_manager = get_encryption_manager()
 
         print(f"✓ Security Incident Logger initialized")

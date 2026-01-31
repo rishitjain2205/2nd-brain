@@ -117,7 +117,8 @@ class Auth0Handler:
         if self._jwks_cache and time.time() - self._jwks_cache_time < 3600:
             return self._jwks_cache
 
-        response = requests.get(self.jwks_url)
+        # SECURITY FIX: Add timeout to prevent indefinite blocking
+        response = requests.get(self.jwks_url, timeout=10)
         self._jwks_cache = response.json()
         self._jwks_cache_time = time.time()
         return self._jwks_cache

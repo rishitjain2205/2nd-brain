@@ -23,7 +23,7 @@ from security.input_validator import InputValidator
 from security.https_enforcer import HTTPSEnforcer
 from security.encryption_manager import EncryptionManager
 from security.audit_logger import AuditLogger
-from security.incident_logger import IncidentLogger, IncidentType, IncidentSeverity
+from security.incident_logger import SecurityIncidentLogger as IncidentLogger, IncidentType, IncidentSeverity
 from security.data_classification import DataClassifier, DataClassification, SecureDataDisposal
 from security.data_sanitizer import PIISanitizer
 

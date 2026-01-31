@@ -30,7 +30,8 @@ headers = {
 print(f"\n📡 Calling: {url}")
 
 try:
-    response = requests.get(url, headers=headers)
+    # SECURITY FIX: Add timeout to prevent indefinite blocking
+    response = requests.get(url, headers=headers, timeout=10)
 
     if response.status_code == 200:
         data = response.json()

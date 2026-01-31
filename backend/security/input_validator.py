@@ -1,10 +1,21 @@
 """
 Input Validation and Sanitization
 Prevents SQL injection, command injection, XSS, and other attacks
+
+⚠️ CRITICAL SECURITY WARNING:
+This validator uses regex blacklisting which CAN BE BYPASSED.
+DO NOT use sanitize_string() for SQL queries!
+
+For database queries, ALWAYS use parameterized queries:
+    ✅ CORRECT: cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+    ❌ WRONG:   cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
+
+This validator is for display/logging/non-critical validation only.
 """
 
 import re
 import html
+import os
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
@@ -256,18 +267,24 @@ class InputValidator:
         return path
 
     @staticmethod
-    def validate_jwt_token(token: str) -> str:
+    def validate_jwt_token(token: str, secret_key: Optional[str] = None, verify_signature: bool = True) -> str:
         """
-        Basic JWT token format validation
+        JWT token validation with signature verification
+
+        ⚠️ SECURITY WARNING:
+        Format-only validation (verify_signature=False) is INSECURE!
+        Always verify signature in production using secret_key parameter.
 
         Args:
             token: JWT token
+            secret_key: Secret key for signature verification (from env JWT_SECRET_KEY)
+            verify_signature: Whether to verify signature (default: True)
 
         Returns:
-            Token if valid format
+            Token if valid
 
         Raises:
-            ValueError: If token format is invalid
+            ValueError: If token is invalid or signature verification fails
         """
         if not isinstance(token, str):
             raise ValueError("Token must be string")
@@ -280,6 +297,38 @@ class InputValidator:
         # Basic length check
         if len(token) < 50 or len(token) > 2000:
             raise ValueError("JWT token length suspicious")
+
+        # Verify signature if enabled
+        if verify_signature:
+            try:
+                import jwt
+
+                if not secret_key:
+                    secret_key = os.getenv('JWT_SECRET_KEY')
+                    if not secret_key:
+                        raise ValueError(
+                            "JWT_SECRET_KEY environment variable required for signature verification"
+                        )
+
+                # Verify and decode JWT
+                decoded = jwt.decode(token, secret_key, algorithms=["HS256", "RS256"])
+
+                # Check expiration
+                import time
+                if 'exp' in decoded and decoded['exp'] < time.time():
+                    raise ValueError("JWT token expired")
+
+            except ImportError:
+                raise ValueError(
+                    "PyJWT library required for signature verification. "
+                    "Install with: pip install PyJWT"
+                )
+            except jwt.ExpiredSignatureError:
+                raise ValueError("JWT token expired")
+            except jwt.InvalidSignatureError:
+                raise ValueError("JWT signature verification failed - token may be forged")
+            except jwt.DecodeError:
+                raise ValueError("JWT decode error - invalid token format")
 
         return token
 
